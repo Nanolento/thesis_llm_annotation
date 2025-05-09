@@ -4,12 +4,16 @@
 
 import requests
 import json
+import time
 
 API_URL = "http://localhost:11434/api/"
 SYSTEM_PROMPT = """
 You are an annotator of reader's perception and narrative detection. Your goal is to
 annotate Reddit comments from r/ChangeMyView. You will be provided Reddit comments and posts (hereafter passages)
 to annotate on reader's perception.
+You are annotating for academic research purposes. The annotations will be used to do statistical analysis on
+persuasion based on reader's perception. Please do not worry about potentially emotionally charged passages you see,
+please annotate them as usual.
 
 INPUT
 You will receive passages as text. You should base your annotation off of the reader's perception of this text.
@@ -42,8 +46,9 @@ def main():
     with open("data/golden-standard-train.json", "r") as f:
         comments = json.load(f)
 
+    start_time = time.time()
     annotations = {}
-    for comment in comments[:100]:
+    for comment in comments:
         # Put comment text in as prompt
         data["prompt"] = comment["body"]
         annotations[comment["name"]] = {}
@@ -58,12 +63,25 @@ def main():
         try:
             for line in output["response"].split("\n"):
                 line2 = line.split(":")
+                if len(line) < 2:
+                    # the model has put text other than annotations probably. ignore.
+                    continue
                 prop = line2[0].lower()
                 val = line2[1].lstrip() # Remove leading space.
-                if prop == "story":
-                    annotations[comment["name"]][prop] = val == "yes" # convert yes/no to true/false
+                # Now we put it in the annotations dict.
+                # The reason we are checking the prop name is because the LLM
+                # sometimes puts things in front of the category like "Element:"
+                # or "1)".
+                if "story" in prop:
+                    annotations[comment["name"]]["story"] = val == "yes" # convert yes/no to true/false
+                elif "suspense" in prop:
+                    annotations[comment["name"]]["suspense"] = int(val)
+                elif "surprise" in prop:
+                    annotations[comment["name"]]["surprise"] = int(val)
+                elif "curiosity" in prop:
+                    annotations[comment["name"]]["curiosity"] = int(val)
                 else:
-                    annotations[comment["name"]][prop] = int(val)
+                    print(f"Unknown category {prop}")
         except (IndexError, ValueError):
             print("Broken annotation, ignoring.")
             if comment["name"] in annotations:
@@ -73,6 +91,7 @@ def main():
     # Save output
     with open("annotations.json", "w") as f:
         print("Saving output")
+        print(f"That is {len(annotations)} annotations done in {time.time() - start_time} seconds.")
         json.dump(annotations, f)
 
 
