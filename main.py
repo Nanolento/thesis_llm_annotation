@@ -34,17 +34,39 @@ Note that this is an example, replace the given values above with your own annot
 def main():
     data = {
         "model": "llama3.2",
-        "prompt": "Are you ready to do some awesome annotation work based on reader's perception?",
         "system": SYSTEM_PROMPT,
         "stream": False
     }
-    response = requests.post(API_URL + "generate", json=data)
-    if response.status_code == 400:
-        print("Bad request:", response.text)
-        return
-    output = json.loads(response.text)
-    print("Response by LLM:", output["response"])
-    
+    with open("data/golden-standard-train.json", "r") as f:
+        comments = json.load(f)
+
+    annotations = {}
+    for comment in comments[:100]:
+        # Put comment text in as prompt
+        data["prompt"] = comment["body"]
+        annotations[comment["name"]] = {}
+        # Get response from LLM
+        response = requests.post(API_URL + "generate", json=data)
+        if response.status_code == 400:
+            print("Bad request:", response.text)
+            return
+        # Parse output
+        output = json.loads(response.text)
+        print(f"\nPassage ID = {comment['name']}\n{output['response']}")
+        for line in output["response"].split("\n"):
+            line2 = line.split(":")
+            prop = line2[0].lower()
+            val = line2[1].lstrip() # Remove leading space.
+            if prop == "story":
+                annotations[comment["name"]][prop] = val == "yes" # convert yes/no to true/false
+            else:
+                annotations[comment["name"]][prop] = int(val)
+
+        # Save output
+        with open("annotations.json", "w") as f:
+            print("Saving output")
+            json.dump(annotations, f)
+
 
 if __name__ == "__main__":
     main()
