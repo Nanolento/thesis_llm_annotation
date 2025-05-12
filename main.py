@@ -68,9 +68,13 @@ def main():
         data["prompt"] = comment["body"]
         annotations[comment["name"]] = {}
         # Get response from LLM
-        response = requests.post(API_URL + "generate", json=data)
-        if response.status_code == 400:
-            print("Bad request:", response.text)
+        try:
+            response = requests.post(API_URL + "generate", json=data)
+            if response.status_code == 400:
+                print("Bad request:", response.text)
+                return
+        except requests.exceptions.ConnectionError:
+            print("Could not connect to Ollama! Is it running?")
             return
         # Parse output
         output = json.loads(response.text)

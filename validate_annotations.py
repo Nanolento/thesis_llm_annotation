@@ -3,8 +3,13 @@
 # is accurate, contains all categories.
 
 import json
+import sys
 
-with open("annotations.json", "r") as f:
+if len(sys.argv) != 2:
+    print("Please give the annotation json file that main.py made to validate!")
+    exit(1)
+
+with open(sys.argv[1], "r") as f:
     annotations = json.load(f)
 
 valid_count = 0
