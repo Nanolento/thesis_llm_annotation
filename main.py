@@ -5,6 +5,8 @@
 import requests
 import json
 import time
+import sys
+import os
 
 API_URL = "http://localhost:11434/api/"
 SYSTEM_PROMPT = """
@@ -37,15 +39,28 @@ Surprise: 4
 Note that this is an example, replace the given values above with your own annotations.
 """
 
+
 def main():
     data = {
         "model": "llama3.2",
         "system": SYSTEM_PROMPT,
         "stream": False
     }
-    with open("data/golden-standard-train.json", "r") as f:
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <in file> <method> <out file>")
+        print("In-File: file to load for model to annotate.\n"
+              "Out-File: file to save annotations in (should be .json)\n"
+              "Method: either 'zeroshot' or 'fewshot'")
+        return
+    print("Loading file")
+    if not os.path.isfile(sys.argv[1]):
+        print("File does not exist!")
+        return
+    with open(sys.argv[1], "r") as f:
         comments = json.load(f)
 
+    method = "fewshot" if len(sys.argv) >= 3 and sys.argv[2] == "fewshot" else "zeroshot"
+    print(f"Using method {method}")
     start_time = time.time()
     annotations = {}
     for comment in comments:
@@ -89,8 +104,12 @@ def main():
             continue
 
     # Save output
-    with open("annotations.json", "w") as f:
-        print("Saving output")
+    if len(sys.argv) >= 4:
+        out_file_path = sys.argv[3]
+    else:
+        out_file_path = "annotations.json"
+    with open(out_file_path, "w") as f:
+        print(f"Saving output to {out_file_path}")
         print(f"That is {len(annotations)} annotations done in {time.time() - start_time} seconds.")
         json.dump(annotations, f)
 
