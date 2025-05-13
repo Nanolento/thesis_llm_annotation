@@ -7,6 +7,7 @@ import json
 import time
 import sys
 import os
+import random
 
 API_URL = "http://localhost:11434/api/"
 SYSTEM_PROMPT = """
@@ -52,7 +53,7 @@ def main():
               "Out-File: file to save annotations in (should be .json)\n"
               "Method: either 'zeroshot' or 'fewshot'")
         return
-    print("Loading file")
+    print("Loading file for passages to annotate")
     if not os.path.isfile(sys.argv[1]):
         print("File does not exist!")
         return
@@ -63,11 +64,31 @@ def main():
     print(f"Using method {method}")
     start_time = time.time()
     annotations = {}
+    if method == "fewshot":
+        print("Loading file for fewshot examples")
+        with open("data/golden-standard-train.json", "r") as f:
+            examples = json.load(f)
+        
     for comment in comments:
         # Put comment text in as prompt
-        data["prompt"] = comment["body"]
+        if method == "zeroshot":
+            data["prompt"] = comment["body"]
+        elif method == "fewshot":
+            data["prompt"] = "EXAMPLE ANNOTATIONS\n"
+            for _ in range(3):
+                example_id = random.randint(0, len(examples))
+                data["prompt"] += "Passage: " + examples[example_id]["body"] + "\n"
+                data["prompt"] += "Story: "
+                data["prompt"] += "yes" if examples[example_id]["story_class"] == "Story" else "no"
+                data["prompt"] += "\nSuspense: " + str(examples[example_id]["suspense"])
+                data["prompt"] += "\nCuriosity: " + str(examples[example_id]["curiosity"])
+                data["prompt"] += "\nSurprise: " + str(examples[example_id]["surprise"]) + "\n\n"
+            data["prompt"] += "\n\nPASSAGE TO ANNOTATE\n"
+            data["prompt"] += "Passage: " + comment["body"]
         annotations[comment["name"]] = {}
         # Get response from LLM
+        print("\nPrompt given to LLM:", data["prompt"])
+
         try:
             response = requests.post(API_URL + "generate", json=data)
             if response.status_code == 400:
