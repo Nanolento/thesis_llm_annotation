@@ -33,10 +33,17 @@ with open(sys.argv[1], "r") as af, open(sys.argv[2], "r") as gf:
             print(comment["name"], "not in annotations.")
             continue
         annotation = annotations[comment["name"]]
-        good = True
         for cat in ["story", "suspense", "curiosity", "surprise"]:
             if cat == "story":
                 val1 = comment["story_class"] == "Story"
+                if "story" not in class_correct:
+                    class_correct["story"] = {
+                        "gold": 0,
+                        "model": 0
+                    }
+                if val1:
+                    class_correct["story"]["gold"] += 1
+                
                 val2 = annotation["story"]
             else:
                 val1 = comment[cat]
@@ -53,18 +60,18 @@ with open(sys.argv[1], "r") as af, open(sys.argv[2], "r") as gf:
 
             if val1 != val2:
                 print(f"{cat} annotation mismatch for {comment['name']}.")
-                good = False
             else:
                 correct_count[cat] += 1
+                correct_count["global"] += 1
                 if cat != "story":
                     class_correct[cat][val2]["model"] += 1
-        print(f"{comment['name']} is {'correct' if good else 'not correct'}")
-        if good:
-            correct_count["global"] += 1
+                elif val1 and val2:
+                    class_correct[cat]["model"] += 1
+
         
-print("Correct count:", correct_count["global"])
+print(f"Correct count: {correct_count['global']}/{len(annotations)*4}")
 print("Total count:", len(annotations))
-print("Accuracy (global):", correct_count["global"] / len(annotations))
+print("Accuracy (global):", correct_count["global"] / (len(annotations) * 4))
 for cat in ["story", "suspense", "curiosity", "surprise"]:
     # precision = correct_count[cat]
     # precision is "voor alle keren dat het model 4 annotate, hoe vaak klopte dat?"
@@ -76,10 +83,10 @@ for cat in ["story", "suspense", "curiosity", "surprise"]:
             if i not in class_correct[cat]:
                 print(i, "not in", cat, "so ignoring")
                 continue
-            recalls[i] = class_correct[cat][i]["model"] / sum([class_correct[cat][i]["gold"], class_correct[cat][i]["model"]])
+            recalls[i] = class_correct[cat][i]["model"] / class_correct[cat][i]["gold"]
         recall = sum(recalls.values()) / len(recalls)
     else:
-        recall = 1 # Unimplemented recall for story yet.
+        recall = class_correct["story"]["model"] / class_correct["story"]["gold"]
     f1_score = 2 * ((precision * recall) / (precision + recall))
     print(f"Accuracy ({cat}): {correct_count[cat]}/{len(annotations)} -> {correct_count[cat] / len(annotations)}")
     print(f"Precision ({cat}): {precision}")
