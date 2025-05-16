@@ -76,7 +76,7 @@ def main():
         elif method == "fewshot":
             data["prompt"] = "EXAMPLE ANNOTATIONS\n"
             for _ in range(3):
-                example_id = random.randint(0, len(examples))
+                example_id = random.randint(0, len(examples) - 1)
                 data["prompt"] += "Passage: " + examples[example_id]["body"] + "\n"
                 data["prompt"] += "Story: "
                 data["prompt"] += "yes" if examples[example_id]["story_class"] == "Story" else "no"
