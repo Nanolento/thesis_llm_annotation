@@ -48,10 +48,11 @@ def main():
         "stream": False
     }
     if len(sys.argv) < 2:
-        print("Usage: python main.py <in file> <method> <out file>")
+        print("Usage: python main.py <in file> <method> <out file> [no. of few shot examples]")
         print("In-File: file to load for model to annotate.\n"
               "Out-File: file to save annotations in (should be .json)\n"
-              "Method: either 'zeroshot' or 'fewshot'")
+              "Method: either 'zeroshot' or 'fewshot'\n"
+              "Optionally specify the number of fewshot examples to give the model.")
         return
     print("Loading file for passages to annotate")
     if not os.path.isfile(sys.argv[1]):
@@ -68,14 +69,21 @@ def main():
         print("Loading file for fewshot examples")
         with open("data/golden-standard-train.json", "r") as f:
             examples = json.load(f)
-        
+        if len(sys.argv) >= 5:
+            try:
+                no_examples = int(sys.argv[4])
+            except ValueError:
+                print("Specify an integer for the number of examples!")
+                return
+        else:
+            no_examples = 3
     for comment in comments:
         # Put comment text in as prompt
         if method == "zeroshot":
             data["prompt"] = comment["body"]
         elif method == "fewshot":
             data["prompt"] = "EXAMPLE ANNOTATIONS\n"
-            for _ in range(3):
+            for _ in range(no_examples):
                 example_id = random.randint(0, len(examples) - 1)
                 data["prompt"] += "Passage: " + examples[example_id]["body"] + "\n"
                 data["prompt"] += "Story: "
