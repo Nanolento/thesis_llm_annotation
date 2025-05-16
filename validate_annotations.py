@@ -13,13 +13,20 @@ with open(sys.argv[1], "r") as f:
     annotations = json.load(f)
 
 valid_count = 0
-for a in annotations:
+total_count = len(annotations.keys())
+for a in list(annotations.keys()): # iterate over copy so we can delete stuff.
     valid = True
     for cat in ["story", "suspense", "curiosity", "surprise"]:
-        if "story" not in annotations[a]:
+        if cat not in annotations[a]:
             print(f"Passage ID {a}: no {cat} annotation!")
             valid = False
     if valid:
         valid_count += 1
+    else:
+        del annotations[a]
 
-print(f"{valid_count}/{len(annotations)} were valid.")
+if valid_count < total_count:
+    with open(sys.argv[1], "w") as f:
+        print("Saving validated version")
+        json.dump(annotations, f)
+print(f"{valid_count}/{total_count} annotations were valid.")
