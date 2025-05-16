@@ -47,7 +47,11 @@ Start the Ollama server:
 
     $ ollama serve
 
-Then, in another terminal (tmux is recommended, since you can create multiple windows), you can run `main.py` to do the annotations:
+Ollama is now ready to answer LLM prompts from our program.
+
+### Running the program
+
+In another terminal (tmux is recommended, since you can create multiple windows), you can run `main.py` to do the annotations:
 
     $ python3 main.py <input file> <method> <output file>
 
