@@ -10,7 +10,7 @@ import os
 import random
 
 API_URL = "http://localhost:11434/api/"
-SYSTEM_PROMPT = """
+SYSTEM_PROMPT_1 = """
 You are an annotator of reader's perception and narrative detection. Your goal is to
 annotate Reddit comments from r/ChangeMyView. You will be provided Reddit comments and posts (hereafter passages)
 to annotate on reader's perception.
@@ -21,15 +21,22 @@ please annotate them as usual.
 INPUT
 You will receive passages as text. You should base your annotation off of the reader's perception of this text.
 
+"""
+
+SYSTEM_PROMPT_2 = """
+OUTPUT
+As output, provide only the annotations in the format described below. Only use the categories "Story", "Suspense",
+"Curiosity" and "Surprise". Do not use any other categories, only annotate these ones.
+"""
+
+SYSTEM_PROMPT_METHOD_LIKERT = """
 METHOD
 You will annotate these passages on these reader's perception elements: suspense, curiosity and surprise. Each
 of these should be annotated on a Likert scale from 1 to 5. You will also annotate the passage on if it
 has a story or contains a narrative or not. This is a binary class which you should annotate as yes or no.
+"""
 
-OUTPUT
-As output, provide only the annotations in the format described below. Only use the categories "Story", "Suspense",
-"Curiosity" and "Surprise". Do not use any other categories, only annotate these ones.
-
+SYSTEM_PROMPT_FORMAT_LIKERT = """
 FORMAT OF OUTPUT
 Please only provide your annotations in a "Element: Annotation" format, like in the below example. Do not put "Element:" in front
 of the annotation, just the category followed by a colon and a space and then the annotation you created.
@@ -40,18 +47,60 @@ Surprise: 4
 Note that this is an example, replace the given values above with your own annotations.
 """
 
+SYSTEM_PROMPT_METHOD_BINARY = """
+METHOD
+You will annotate these passages on these reader's perception elements: suspense, curiosity and surprise. Each
+of these should be annotated as a binary class, either 'yes' or 'no'. You will also annotate the passage on if it
+has a story or contains a narrative or not. This is a binary class which you should annotate as yes or no.
+"""
+
+SYSTEM_PROMPT_FORMAT_BINARY = """
+Please only provide your annotations in a "Element: Annotation" format, like in the below example. Do not put "Element:" in front
+of the annotation, just the category followed by a colon and a space and then the annotation you created.
+Story: yes
+Suspense: yes
+Curiosity: no
+Surprise: yes
+Note that this is an example, replace the given values above with your own annotations.
+"""
+
+SYSTEM_PROMPT_METHOD_TERNARY = """
+METHOD
+You will annotate these passages on these reader's perception elements: suspense, curiosity and surprise. Each
+of these should be annotated as a ternary class with three levels of perception: 'low', 'medium' and 'high'.
+You will also annotate the passage on if it has a story or contains a narrative or not.
+This is a binary class which you should annotate as yes or no.
+"""
+
+SYSTEM_PROMPT_FORMAT_TERNARY = """
+Please only provide your annotations in a "Element: Annotation" format, like in the below example. Do not put "Element:" in front
+of the annotation, just the category followed by a colon and a space and then the annotation you created.
+Story: yes
+Suspense: medium
+Curiosity: low
+Surprise: high
+Note that this is an example, replace the given values above with your own annotations.
+"""
+
+def get_ternary_example(val):
+    # 4,5 = high
+    # 3 = medium
+    # 1,2 = low
+    if val >= 4:
+        return "high"
+    elif val >= 3:
+        return "medium"
+    else:
+        return "low"
+
 
 def main():
-    data = {
-        "model": "llama3.2",
-        "system": SYSTEM_PROMPT,
-        "stream": False
-    }
     if len(sys.argv) < 2:
-        print("Usage: python main.py <in file> <method> <out file> [no. of few shot examples]")
+        print("Usage: python main.py <in file> <method> <out file> [no. of few shot examples] [rp style]")
         print("In-File: file to load for model to annotate.\n"
               "Out-File: file to save annotations in (should be .json)\n"
               "Method: either 'zeroshot' or 'fewshot'\n"
+              "RP style: Use either 'likert', 'binary' or 'ternary' to indicate the way you want stories annotated.\n"
               "Optionally specify the number of fewshot examples to give the model.")
         return
     print("Loading file for passages to annotate")
@@ -62,9 +111,35 @@ def main():
         comments = json.load(f)
 
     method = "fewshot" if len(sys.argv) >= 3 and sys.argv[2] == "fewshot" else "zeroshot"
+    rp_style = "likert" # default
+    if len(sys.argv) >= 6:
+        if sys.argv[5] not in ["binary", "ternary", "likert"]:
+            print("Please specify a valid reader's perception element style!")
+            return
+        else:
+            rp_style = sys.argv[5]
     print(f"Using method {method}")
+    print(f"RP Style: {rp_style}")
     start_time = time.time()
     annotations = {}
+
+    # Define model
+    data = {
+        "model": "llama3.2",
+        "stream": False
+    }
+
+    # System prompt construction
+    if rp_style == "likert":
+        data["system"] = SYSTEM_PROMPT_1 + SYSTEM_PROMPT_METHOD_LIKERT + \
+            SYSTEM_PROMPT_2 + SYSTEM_PROMPT_FORMAT_LIKERT
+    elif rp_style == "binary":
+        data["system"] = SYSTEM_PROMPT_1 + SYSTEM_PROMPT_METHOD_BINARY + \
+            SYSTEM_PROMPT_2 + SYSTEM_PROMPT_FORMAT_BINARY
+    elif rp_style == "ternary":
+        data["system"] = SYSTEM_PROMPT_1 + SYSTEM_PROMPT_METHOD_TERNARY + \
+            SYSTEM_PROMPT_2 + SYSTEM_PROMPT_FORMAT_TERNARY
+    
     if method == "fewshot":
         print("Loading file for fewshot examples")
         with open("data/golden-standard-train.json", "r") as f:
@@ -88,9 +163,24 @@ def main():
                 data["prompt"] += "Passage: " + examples[example_id]["body"] + "\n"
                 data["prompt"] += "Story: "
                 data["prompt"] += "yes" if examples[example_id]["story_class"] == "Story" else "no"
-                data["prompt"] += "\nSuspense: " + str(examples[example_id]["suspense"])
-                data["prompt"] += "\nCuriosity: " + str(examples[example_id]["curiosity"])
-                data["prompt"] += "\nSurprise: " + str(examples[example_id]["surprise"]) + "\n\n"
+                if rp_style == "likert":
+                    data["prompt"] += "\nSuspense: " + str(examples[example_id]["suspense"])
+                    data["prompt"] += "\nCuriosity: " + str(examples[example_id]["curiosity"])
+                    data["prompt"] += "\nSurprise: " + str(examples[example_id]["surprise"]) + "\n\n"
+                elif rp_style == "binary":
+                    example_suspense = "yes" if examples[example_id]["suspense"] > 2 else "no"
+                    data["prompt"] += "\nSuspense: " + example_suspense
+                    example_curiosity = "yes" if examples[example_id]["curiosity"] > 2 else "no"
+                    data["prompt"] += "\nCuriosity: " + example_curiosity
+                    example_surprise = "yes" if examples[example_id]["surprise"] > 2 else "no"
+                    data["prompt"] += "\nSurprise: " + example_surprise + "\n\n"
+                elif rp_style == "ternary":
+                    example_suspense = get_ternary_example(examples[example_id]["suspense"])
+                    data["prompt"] += "\nSuspense: " + example_suspense
+                    example_curiosity = get_ternary_example(examples[example_id]["curiosity"])
+                    data["prompt"] += "\nCuriosity: " + example_curiosity
+                    example_surprise = get_ternary_example(examples[example_id]["surprise"])
+                    data["prompt"] += "\nSurprise: " + example_surprise + "\n\n"
             data["prompt"] += "\n\nPASSAGE TO ANNOTATE\n"
             data["prompt"] += "Passage: " + comment["body"]
         annotations[comment["name"]] = {}
@@ -121,15 +211,42 @@ def main():
                 # sometimes puts things in front of the category like "Element:"
                 # or "1)".
                 if "story" in prop:
+                    # Narrative detection
                     annotations[comment["name"]]["story"] = val == "yes" # convert yes/no to true/false
-                elif "suspense" in prop:
-                    annotations[comment["name"]]["suspense"] = int(val)
-                elif "surprise" in prop:
-                    annotations[comment["name"]]["surprise"] = int(val)
-                elif "curiosity" in prop:
-                    annotations[comment["name"]]["curiosity"] = int(val)
                 else:
-                    print(f"Unknown category {prop}")
+
+                    # Reader's perception
+                    # LIKERT
+                    if rp_style == "likert":
+                        if "suspense" in prop:
+                            annotations[comment["name"]]["suspense"] = int(val)
+                        elif "surprise" in prop:
+                            annotations[comment["name"]]["surprise"] = int(val)
+                        elif "curiosity" in prop:
+                            annotations[comment["name"]]["curiosity"] = int(val)
+                        else:
+                            print(f"Unknown category {prop}")
+                    # BINARY
+                    elif rp_style == "binary":
+                        if "suspense" in prop:
+                            annotations[comment["name"]]["suspense"] = val == "yes"
+                        elif "surprise" in prop:
+                            annotations[comment["name"]]["surprise"] = val == "yes"
+                        elif "curiosity" in prop:
+                            annotations[comment["name"]]["curiosity"] = val == "yes"
+                        else:
+                            print(f"Unknown category {prop}")
+                    # TERNARY
+                    elif rp_style == "ternary":
+                        # Take it for what it is. validate_annotations will check if valid.
+                        if "suspense" in prop:
+                            annotations[comment["name"]]["suspense"] = val
+                        elif "surprise" in prop:
+                            annotations[comment["name"]]["surprise"] = val
+                        elif "curiosity" in prop:
+                            annotations[comment["name"]]["curiosity"] = val
+                        else:
+                            print(f"Unknown category {prop}")
         except (IndexError, ValueError):
             print("Broken annotation, ignoring.")
             if comment["name"] in annotations:

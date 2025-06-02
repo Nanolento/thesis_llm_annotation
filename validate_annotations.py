@@ -20,6 +20,19 @@ for a in list(annotations.keys()): # iterate over copy so we can delete stuff.
         if cat not in annotations[a]:
             print(f"Passage ID {a}: no {cat} annotation!")
             valid = False
+            break
+        if cat != "story" and \
+           isinstance(annotations[a][cat], str) and \
+           annotations[a][cat].rstrip() not in ["high", "medium", "low"]:
+            # Incorrect reader's perception annotation for ternary scales
+            valid = False
+            print(f"Passage ID {a}: invalid annotation '{annotations[a][cat]}' for ternary RP")
+        elif cat != "story" and \
+             isinstance(annotations[a][cat], str) and \
+             annotations[a][cat].rstrip() != annotations[a][cat]:
+            # Correct the label
+            print(f"Passage ID {a}: Correcting label '{annotations[a][cat]}'")
+            annotations[a][cat] = annotations[a][cat].rstrip()
     if valid:
         valid_count += 1
     else:
