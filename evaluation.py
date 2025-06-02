@@ -61,10 +61,12 @@ for cat in ["story", "suspense", "curiosity", "surprise"]:
     yp = [l for l in y_pred[cat]]
 
     accuracy = accuracy_score(yt, yp)
-    precision = precision_score(yt, yp, average="macro", zero_division=0)
-    recall = recall_score(yt, yp, average="macro", zero_division=0)
+    precision = precision_score(yt, yp, average="weighted", zero_division=0)
+    recall = recall_score(yt, yp, average="weighted", zero_division=0)
     f1 = f1_score(yt, yp, average="macro", zero_division=0)
+    f1w = f1_score(yt, yp, average="weighted", zero_division=0)
     print(f"Accuracy ({cat}): {accuracy}")
     print(f"Precision ({cat}): {precision}")
     print(f"Recall ({cat}): {recall}")
-    print(f"F1-score ({cat}): {f1}")
+    print(f"F1-score ({cat}) (macro): {f1}")
+    print(f"F1-score ({cat}) (weighted): {f1w}")
