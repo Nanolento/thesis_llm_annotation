@@ -152,116 +152,118 @@ def main():
                 return
         else:
             no_examples = 3
-    for comment in comments:
-        # Put comment text in as prompt
-        if method == "zeroshot":
-            data["prompt"] = comment["body"]
-        elif method == "fewshot":
-            data["prompt"] = "EXAMPLE ANNOTATIONS\n"
-            for _ in range(no_examples):
-                example_id = random.randint(0, len(examples) - 1)
-                data["prompt"] += "Passage: " + examples[example_id]["body"] + "\n"
-                data["prompt"] += "Story: "
-                data["prompt"] += "yes" if examples[example_id]["story_class"] == "Story" else "no"
-                if rp_style == "likert":
-                    data["prompt"] += "\nSuspense: " + str(examples[example_id]["suspense"])
-                    data["prompt"] += "\nCuriosity: " + str(examples[example_id]["curiosity"])
-                    data["prompt"] += "\nSurprise: " + str(examples[example_id]["surprise"]) + "\n\n"
-                elif rp_style == "binary":
-                    example_suspense = "yes" if examples[example_id]["suspense"] > 2 else "no"
-                    data["prompt"] += "\nSuspense: " + example_suspense
-                    example_curiosity = "yes" if examples[example_id]["curiosity"] > 2 else "no"
-                    data["prompt"] += "\nCuriosity: " + example_curiosity
-                    example_surprise = "yes" if examples[example_id]["surprise"] > 2 else "no"
-                    data["prompt"] += "\nSurprise: " + example_surprise + "\n\n"
-                elif rp_style == "ternary":
-                    example_suspense = get_ternary_example(examples[example_id]["suspense"])
-                    data["prompt"] += "\nSuspense: " + example_suspense
-                    example_curiosity = get_ternary_example(examples[example_id]["curiosity"])
-                    data["prompt"] += "\nCuriosity: " + example_curiosity
-                    example_surprise = get_ternary_example(examples[example_id]["surprise"])
-                    data["prompt"] += "\nSurprise: " + example_surprise + "\n\n"
-            data["prompt"] += "\n\nPASSAGE TO ANNOTATE\n"
-            data["prompt"] += "Passage: " + comment["body"]
-        annotations[comment["name"]] = {}
-        # Get response from LLM
-        print("\nPrompt given to LLM:", data["prompt"])
-
-        try:
-            response = requests.post(API_URL + "generate", json=data)
-            if response.status_code == 400:
-                print("Bad request:", response.text)
-                return
-        except requests.exceptions.ConnectionError:
-            print("Could not connect to Ollama! Is it running?")
-            return
-        # Parse output
-        output = json.loads(response.text)
-        print(f"\nPassage ID = {comment['name']}\n{output['response']}")
-        try:
-            for line in output["response"].split("\n"):
-                line2 = line.split(":")
-                if len(line) < 2:
-                    # the model has put text other than annotations probably. ignore.
-                    continue
-                prop = line2[0].lower()
-                val = line2[1].lstrip() # Remove leading space.
-                # Now we put it in the annotations dict.
-                # The reason we are checking the prop name is because the LLM
-                # sometimes puts things in front of the category like "Element:"
-                # or "1)".
-                if "story" in prop:
-                    # Narrative detection
-                    annotations[comment["name"]]["story"] = val == "yes" # convert yes/no to true/false
-                else:
-
-                    # Reader's perception
-                    # LIKERT
+    try:
+        for comment in comments:
+            # Put comment text in as prompt
+            if method == "zeroshot":
+                data["prompt"] = comment["body"]
+            elif method == "fewshot":
+                data["prompt"] = "EXAMPLE ANNOTATIONS\n"
+                for _ in range(no_examples):
+                    example_id = random.randint(0, len(examples) - 1)
+                    data["prompt"] += "Passage: " + examples[example_id]["body"] + "\n"
+                    data["prompt"] += "Story: "
+                    data["prompt"] += "yes" if examples[example_id]["story_class"] == "Story" else "no"
                     if rp_style == "likert":
-                        if "suspense" in prop:
-                            annotations[comment["name"]]["suspense"] = int(val)
-                        elif "surprise" in prop:
-                            annotations[comment["name"]]["surprise"] = int(val)
-                        elif "curiosity" in prop:
-                            annotations[comment["name"]]["curiosity"] = int(val)
-                        else:
-                            print(f"Unknown category {prop}")
-                    # BINARY
+                        data["prompt"] += "\nSuspense: " + str(examples[example_id]["suspense"])
+                        data["prompt"] += "\nCuriosity: " + str(examples[example_id]["curiosity"])
+                        data["prompt"] += "\nSurprise: " + str(examples[example_id]["surprise"]) + "\n\n"
                     elif rp_style == "binary":
-                        if "suspense" in prop:
-                            annotations[comment["name"]]["suspense"] = val == "yes"
-                        elif "surprise" in prop:
-                            annotations[comment["name"]]["surprise"] = val == "yes"
-                        elif "curiosity" in prop:
-                            annotations[comment["name"]]["curiosity"] = val == "yes"
-                        else:
-                            print(f"Unknown category {prop}")
-                    # TERNARY
+                        example_suspense = "yes" if examples[example_id]["suspense"] > 3 else "no"
+                        data["prompt"] += "\nSuspense: " + example_suspense
+                        example_curiosity = "yes" if examples[example_id]["curiosity"] > 3 else "no"
+                        data["prompt"] += "\nCuriosity: " + example_curiosity
+                        example_surprise = "yes" if examples[example_id]["surprise"] > 3 else "no"
+                        data["prompt"] += "\nSurprise: " + example_surprise + "\n\n"
                     elif rp_style == "ternary":
-                        # Take it for what it is. validate_annotations will check if valid.
-                        if "suspense" in prop:
-                            annotations[comment["name"]]["suspense"] = val
-                        elif "surprise" in prop:
-                            annotations[comment["name"]]["surprise"] = val
-                        elif "curiosity" in prop:
-                            annotations[comment["name"]]["curiosity"] = val
-                        else:
-                            print(f"Unknown category {prop}")
-        except (IndexError, ValueError):
-            print("Broken annotation, ignoring.")
-            if comment["name"] in annotations:
-                del annotations[comment["name"]]
-            continue
-
-    # Save output
-    if len(sys.argv) >= 4:
-        out_file_path = sys.argv[3]
-    else:
-        out_file_path = "annotations.json"
-    with open(out_file_path, "w") as f:
-        print(f"Saving output to {out_file_path}")
-        print(f"That is {len(annotations)} annotations done in {time.time() - start_time} seconds.")
-        json.dump(annotations, f)
+                        example_suspense = get_ternary_example(examples[example_id]["suspense"])
+                        data["prompt"] += "\nSuspense: " + example_suspense
+                        example_curiosity = get_ternary_example(examples[example_id]["curiosity"])
+                        data["prompt"] += "\nCuriosity: " + example_curiosity
+                        example_surprise = get_ternary_example(examples[example_id]["surprise"])
+                        data["prompt"] += "\nSurprise: " + example_surprise + "\n\n"
+                data["prompt"] += "\n\nPASSAGE TO ANNOTATE\n"
+                data["prompt"] += "Passage: " + comment["body"]
+            annotations[comment["name"]] = {}
+            # Get response from LLM
+            print("\nPrompt given to LLM:", data["prompt"])
+            print(f"Annotations done so far: {len(annotations)}")
+            try:
+                response = requests.post(API_URL + "generate", json=data)
+                if response.status_code == 400:
+                    print("Bad request:", response.text)
+                    return
+            except requests.exceptions.ConnectionError:
+                print("Could not connect to Ollama! Is it running?")
+                return
+            # Parse output
+            output = json.loads(response.text)
+            print(f"\nPassage ID = {comment['name']}\n{output['response']}")
+            try:
+                for line in output["response"].split("\n"):
+                    line2 = line.split(":")
+                    if len(line) < 2:
+                        # the model has put text other than annotations probably. ignore.
+                        continue
+                    prop = line2[0].lower()
+                    val = line2[1].lstrip() # Remove leading space.
+                    # Now we put it in the annotations dict.
+                    # The reason we are checking the prop name is because the LLM
+                    # sometimes puts things in front of the category like "Element:"
+                    # or "1)".
+                    if "story" in prop:
+                        # Narrative detection
+                        annotations[comment["name"]]["story"] = val == "yes" # convert yes/no to true/false
+                    else:
+                        # Reader's perception
+                        # LIKERT
+                        if rp_style == "likert":
+                            if "suspense" in prop:
+                                annotations[comment["name"]]["suspense"] = int(val)
+                            elif "surprise" in prop:
+                                annotations[comment["name"]]["surprise"] = int(val)
+                            elif "curiosity" in prop:
+                                annotations[comment["name"]]["curiosity"] = int(val)
+                            else:
+                                print(f"Unknown category {prop}")
+                        # BINARY
+                        elif rp_style == "binary":
+                            if "suspense" in prop:
+                                annotations[comment["name"]]["suspense"] = val == "yes"
+                            elif "surprise" in prop:
+                                annotations[comment["name"]]["surprise"] = val == "yes"
+                            elif "curiosity" in prop:
+                                annotations[comment["name"]]["curiosity"] = val == "yes"
+                            else:
+                                print(f"Unknown category {prop}")
+                        # TERNARY
+                        elif rp_style == "ternary":
+                            # Take it for what it is. validate_annotations will check if valid.
+                            if "suspense" in prop:
+                                annotations[comment["name"]]["suspense"] = val
+                            elif "surprise" in prop:
+                                annotations[comment["name"]]["surprise"] = val
+                            elif "curiosity" in prop:
+                                annotations[comment["name"]]["curiosity"] = val
+                            else:
+                                print(f"Unknown category {prop}")
+            except (IndexError, ValueError):
+                print("Broken annotation, ignoring.")
+                if comment["name"] in annotations:
+                    del annotations[comment["name"]]
+                continue
+    except Exception as e:
+        print(f"Something went wrong! {e}")
+    finally:
+        # Save output
+        if len(sys.argv) >= 4:
+            out_file_path = sys.argv[3]
+        else:
+            out_file_path = "annotations.json"
+        with open(out_file_path, "w") as f:
+            print(f"Saving output to {out_file_path}")
+            print(f"That is {len(annotations)} annotations done in {time.time() - start_time} seconds.")
+            json.dump(annotations, f)
 
 
 if __name__ == "__main__":
