@@ -54,7 +54,7 @@ with open(sys.argv[1], "r") as af, open(sys.argv[2], "r") as gf:
                 if rp_style == "likert":
                     val1 = comment[cat]
                 elif rp_style == "binary":
-                    val1 = comment[cat] > 2
+                    val1 = comment[cat] > 3
                 elif rp_style == "ternary":
                     val1 = get_ternary_example(comment[cat])
                 val2 = annotation[cat]
