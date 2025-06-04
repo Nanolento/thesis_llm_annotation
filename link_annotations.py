@@ -34,7 +34,8 @@ for comment_id in annotations.keys():
         if (data[d_idx]["author"] == "[deleted]" or
             data[d_idx]["body"] == "[deleted]" or
             data[d_idx]["selftext"] == "[removed]" or
-            data[d_idx]["body"] == ""):
+            (data[d_idx]["body"] == "" and
+             data[d_idx]["selftext"] == "")):
             print(f"'{comment_id}' useless. Marking for removal.")
             invalid_comment_ids.add(comment_id) # remove useless comment.
     else:
