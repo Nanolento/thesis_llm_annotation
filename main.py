@@ -96,11 +96,12 @@ def get_ternary_example(val):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python main.py <in file> <method> <out file> [no. of few shot examples] [rp style]")
+        print("Usage: python main.py <in file> <method> <out file> [no. of few shot examples] [rp style] [fewshot example file]")
         print("In-File: file to load for model to annotate.\n"
               "Out-File: file to save annotations in (should be .json)\n"
               "Method: either 'zeroshot' or 'fewshot'\n"
               "RP style: Use either 'likert', 'binary' or 'ternary' to indicate the way you want stories annotated.\n"
+              "Fewshot Example file: File to use to get fewshot examples from\n"
               "Optionally specify the number of fewshot examples to give the model.")
         return
     print("Loading file for passages to annotate")
@@ -123,6 +124,11 @@ def main():
     start_time = time.time()
     annotations = {}
 
+    if len(sys.argv) >= 7 and os.path.isfile(sys.argv[6]):
+        fs_example_file = sys.argv[6]
+    else:
+        fs_example_file = "data/golden-standard-train.json"
+
     # Define model
     data = {
         "model": "llama3.2",
@@ -142,7 +148,7 @@ def main():
     
     if method == "fewshot":
         print("Loading file for fewshot examples")
-        with open("data/golden-standard-train.json", "r") as f:
+        with open(fs_example_file, "r") as f:
             examples = json.load(f)
         if len(sys.argv) >= 5:
             try:
