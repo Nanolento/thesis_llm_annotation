@@ -38,8 +38,9 @@ for l in data:
         j = json.loads(l)
     else:
         j = l
-    children_count += count_comments(j["comments"])
+    if "comments" in j:
+        children_count += count_comments(j["comments"])
     posts_done += 1
-    print(f"Post {posts_done} / {data_size} -> {children_count} so far counted")
+    print(f"Post {posts_done} / {data_size} posts -> {children_count} comments so far counted", end="\r")
 
-print(posts_done + children_count)
+print(f"\n{str(posts_done + children_count)} total posts/comments found")
